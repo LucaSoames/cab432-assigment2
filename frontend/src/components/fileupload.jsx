@@ -18,7 +18,7 @@ function FileUpload() {
 
     const onFormSubmit = async (event) => {
         event.preventDefault();
-
+        debugger;
         let endpoint = '';
         switch (compressionType) {
             case 'zip':
@@ -39,10 +39,10 @@ function FileUpload() {
         formData.append('file', file);
 
         try {
-            const response = await axios.post(`http://localhost:3000${endpoint}`, formData, {
+            const response = await axios.post(`http://localhost:8080${endpoint}`, formData, {
                 responseType: 'blob', // to handle binary data
             });
-
+            debugger;
             const downloadUrl = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
             link.href = downloadUrl;
