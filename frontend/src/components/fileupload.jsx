@@ -4,65 +4,103 @@ import { Button, Form, Alert } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 function FileUpload() {
-    const [file, setFile] = useState(null);
+    const [files, setFiles] = useState([]);
     const [compressionType, setCompressionType] = useState('');
     const [uploadStatus, setUploadStatus] = useState('');
+    const [uploadFolder, setUploadFolder] = useState(false);
 
     const onFileChange = (event) => {
-        setFile(event.target.files[0]);
+        setFiles(Array.from(event.target.files));
     };
 
     const onCompressionTypeChange = (event) => {
         setCompressionType(event.target.value);
     };
 
+    const allFilesAreImages = () => {
+        return files.every(file => file.type.startsWith('image/'));
+    };
+
+    const uploadFiles = async (endpoint, files) => {
+        const formData = new FormData();
+        files.forEach(file => {
+            const filename = file.webkitRelativePath || file.name;
+            formData.append(`files`, file, filename);
+        });
+        try {
+            const response = await axios.post(`http://localhost:8080${endpoint}`, formData, {
+                responseType: 'blob',
+            });
+
+            const downloadUrl = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            if (compressionType == 'image') {
+                if (files.length == 1){
+                    debugger;
+                    link.setAttribute('download', files[0].name);
+                }
+                else {
+                    link.setAttribute('download', 'compressed.zip');
+                }
+            }
+            else {
+                link.setAttribute('download', `compressed.${compressionType}`);
+            }
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+
+            setUploadStatus('Files uploaded and compressed successfully.');
+        } catch (error) {
+            console.error('Error uploading files', error);
+            setUploadStatus('Failed to upload and compress files.');
+        }
+    };
+
     const onFormSubmit = async (event) => {
         event.preventDefault();
-        debugger;
         let endpoint = '';
         switch (compressionType) {
             case 'zip':
                 endpoint = '/upload-zip';
                 break;
-            case 'tar':
+            case 'tar.gz':
                 endpoint = '/upload-tar';
                 break;
             case 'image':
-                endpoint = '/upload-image';
+                if (files.length == 1) {
+                    endpoint = '/upload-image';
+                }
+                else {
+                    endpoint = '/upload-multiple-images';
+                }
                 break;
             default:
                 setUploadStatus('Please select a valid compression type.');
                 return;
         }
 
-        const formData = new FormData();
-        formData.append('file', file);
-
-        try {
-            const response = await axios.post(`http://localhost:8080${endpoint}`, formData, {
-                responseType: 'blob', // to handle binary data
-            });
-            debugger;
-            const downloadUrl = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = downloadUrl;
-            link.setAttribute('download', `compressed_${file.name}`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-
-            setUploadStatus('File uploaded and compressed successfully.');
-        } catch (error) {
-            setUploadStatus('Failed to upload and compress file.');
-        }
+        await uploadFiles(endpoint, files);
     };
 
     return (
         <div className="container mt-5">
             <Form onSubmit={onFormSubmit}>
                 <Form.Group controlId="formFile" className="mb-3">
-                    <Form.Label>Choose a file to upload</Form.Label>
-                    <Form.Control type="file" onChange={onFileChange} />
+                    <Form.Label>Choose files to upload, click the checkbox to upload folders</Form.Label>
+                    <Form.Check 
+                        type="checkbox"
+                        label=""
+                        checked={uploadFolder}
+                        onChange={(e) => setUploadFolder(e.target.checked)}
+                    />
+                    <Form.Control 
+                        type="file" 
+                        multiple 
+                        {...(uploadFolder ? {directory: "", webkitdirectory: ""} : {})}
+                        onChange={onFileChange} 
+                    />
                 </Form.Group>
 
                 <Form.Group controlId="compressionType" className="mb-3">
@@ -70,8 +108,8 @@ function FileUpload() {
                     <Form.Select onChange={onCompressionTypeChange}>
                         <option value="" disabled selected>Select a compression type</option>
                         <option value="zip">ZIP</option>
-                        <option value="tar">Tar.gz (Ubuntu/Mac)</option>
-                        {file && file.type.startsWith('image/') && <option value="image">Image Compression</option>}
+                        <option value="tar.gz">Tar.gz (Ubuntu/Mac)</option>
+                        {allFilesAreImages() && <option value="image">Image Compression</option>}
                     </Form.Select>
                 </Form.Group>
 
